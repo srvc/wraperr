@@ -1,10 +1,11 @@
 package wraperr
 
 import (
-	"fmt"
 	"go/ast"
 	"go/build"
+	"go/token"
 	"go/types"
+	"sort"
 
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/loader"
@@ -59,13 +60,21 @@ func (d *detectorImpl) CheckPackages(paths []string) error {
 		return errors.WithStack(err)
 	}
 
+	unwrappedErrs := &unwrappedErrors{}
+
 	for _, pkgInfo := range prog.InitialPackages() {
 		for _, f := range pkgInfo.Files {
-			ast.Walk(newVisitor(prog, pkgInfo, d.wrapperFuncSet), f)
+			ast.Walk(newVisitor(prog, pkgInfo, unwrappedErrs, d.wrapperFuncSet), f)
 		}
 	}
 
-	return nil
+	if len(unwrappedErrs.Errors()) == 0 {
+		return nil
+	}
+
+	sort.Sort(unwrappedErrs)
+
+	return unwrappedErrs
 }
 
 func (d *detectorImpl) load(paths []string) (*loader.Program, error) {
@@ -92,13 +101,15 @@ func (d *detectorImpl) load(paths []string) (*loader.Program, error) {
 type visitor struct {
 	prog           *loader.Program
 	pkg            *loader.PackageInfo
+	unwrappedErrs  UnwrappedErrors
 	wrapperFuncSet map[string]struct{}
 }
 
-func newVisitor(prog *loader.Program, pkg *loader.PackageInfo, wrapperFuncSet map[string]struct{}) ast.Visitor {
+func newVisitor(prog *loader.Program, pkg *loader.PackageInfo, unwrappedErrs UnwrappedErrors, wrapperFuncSet map[string]struct{}) ast.Visitor {
 	return &visitor{
 		prog:           prog,
 		pkg:            pkg,
+		unwrappedErrs:  unwrappedErrs,
 		wrapperFuncSet: wrapperFuncSet,
 	}
 }
@@ -203,8 +214,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			// Named return values
 			for n := range v.errNames {
 				if errIdent, ok := v.errIdents[n]; ok && !errIdent.wrapped {
-					// TODO: record unwrapped error
-					fmt.Println(v.prog.Fset.Position(stmt.Return).Line, v.decl.Name)
+					v.recordUnwrappedError(stmt.Return)
 				}
 			}
 		case len(v.errInReturn):
@@ -216,13 +226,11 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 				switch expr := expr.(type) {
 				case *ast.Ident:
 					if errIdent, ok := v.errIdents[expr.Name]; ok && !errIdent.wrapped {
-						// TODO: record unwrapped error
-						fmt.Println(v.prog.Fset.Position(expr.NamePos).Line, v.decl.Name)
+						v.recordUnwrappedError(expr.NamePos)
 					}
 				case *ast.CallExpr:
 					if !v.isWrapped(expr) {
-						// TODO: record unwrapped error
-						fmt.Println(v.prog.Fset.Position(expr.Lparen).Line, v.decl.Name)
+						v.recordUnwrappedError(expr.Lparen)
 					}
 				default:
 					// TODO: should report unexpected exper
@@ -233,8 +241,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			switch expr := stmt.Results[0].(type) {
 			case *ast.CallExpr:
 				if !v.isWrapped(expr) {
-					// TODO: record unwrapped error
-					fmt.Println(v.prog.Fset.Position(expr.Pos()).Line, v.decl.Name)
+					v.recordUnwrappedError(expr.Pos())
 				}
 			default:
 				// TODO: should report unexpected exper
@@ -244,4 +251,11 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 		}
 	}
 	return v
+}
+
+func (v *funcVisitor) recordUnwrappedError(pos token.Pos) {
+	v.unwrappedErrs.Add(&UnwrappedError{
+		Position: v.prog.Fset.Position(pos),
+		Funcname: v.decl.Name.Name,
+	})
 }
