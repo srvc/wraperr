@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
 var (
@@ -37,6 +37,12 @@ type Detector interface {
 	CheckPackages(paths []string) error
 }
 
+type Package struct {
+	*types.Package
+	*types.Info
+	Files []*ast.File
+}
+
 func NewDetector() Detector {
 	wrapperFuncSet := make(map[string]struct{}, len(WrapperFuncList))
 	for _, f := range WrapperFuncList {
@@ -45,26 +51,28 @@ func NewDetector() Detector {
 
 	return &detectorImpl{
 		ctx:            build.Default,
+		fset:           token.NewFileSet(),
 		wrapperFuncSet: wrapperFuncSet,
 	}
 }
 
 type detectorImpl struct {
 	ctx            build.Context
+	fset           *token.FileSet
 	wrapperFuncSet map[string]struct{}
 }
 
 func (d *detectorImpl) CheckPackages(paths []string) error {
-	prog, err := d.load(paths)
+	pkgs, err := d.load(paths)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	unwrappedErrs := &unwrappedErrors{}
 
-	for _, pkgInfo := range prog.InitialPackages() {
-		for _, f := range pkgInfo.Files {
-			ast.Walk(newVisitor(prog, pkgInfo, unwrappedErrs, d.wrapperFuncSet), f)
+	for _, pkg := range pkgs {
+		for _, f := range pkg.Files {
+			ast.Walk(newVisitor(d.fset, pkg, unwrappedErrs, d.wrapperFuncSet), f)
 		}
 	}
 
@@ -77,37 +85,38 @@ func (d *detectorImpl) CheckPackages(paths []string) error {
 	return unwrappedErrs
 }
 
-func (d *detectorImpl) load(paths []string) (*loader.Program, error) {
-	lc := loader.Config{
-		Build: &d.ctx,
-	}
-
-	rest, err := lc.FromArgs(paths, true) // TODO: configurable
+func (d *detectorImpl) load(paths []string) ([]*Package, error) {
+	pkgs, err := packages.Load(&packages.Config{
+		Mode:  packages.LoadAllSyntax,
+		Fset:  d.fset,
+		Tests: true,
+	}, paths...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load paths: %v", paths)
 	}
-	if len(rest) != 0 {
-		return nil, errors.Wrapf(err, "unhandled paths: %v", rest)
+
+	result := make([]*Package, len(pkgs), len(pkgs))
+	for i, pkg := range pkgs {
+		result[i] = &Package{
+			Package: pkg.Types,
+			Info:    pkg.TypesInfo,
+			Files:   pkg.Syntax,
+		}
 	}
 
-	prog, err := lc.Load()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load packages")
-	}
-
-	return prog, nil
+	return result, nil
 }
 
 type visitor struct {
-	prog           *loader.Program
-	pkg            *loader.PackageInfo
+	fset           *token.FileSet
+	pkg            *Package
 	unwrappedErrs  UnwrappedErrors
 	wrapperFuncSet map[string]struct{}
 }
 
-func newVisitor(prog *loader.Program, pkg *loader.PackageInfo, unwrappedErrs UnwrappedErrors, wrapperFuncSet map[string]struct{}) ast.Visitor {
+func newVisitor(fset *token.FileSet, pkg *Package, unwrappedErrs UnwrappedErrors, wrapperFuncSet map[string]struct{}) ast.Visitor {
 	return &visitor{
-		prog:           prog,
+		fset:           fset,
 		pkg:            pkg,
 		unwrappedErrs:  unwrappedErrs,
 		wrapperFuncSet: wrapperFuncSet,
@@ -127,7 +136,7 @@ func (v *visitor) Visit(node ast.Node) (w ast.Visitor) {
 }
 
 func (v *visitor) debug(x interface{}) {
-	ast.Print(v.prog.Fset, x)
+	ast.Print(v.fset, x)
 }
 
 func (v *visitor) isWrapped(call *ast.CallExpr) bool {
@@ -255,7 +264,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 
 func (v *funcVisitor) recordUnwrappedError(pos token.Pos) {
 	v.unwrappedErrs.Add(&UnwrappedError{
-		Position: v.prog.Fset.Position(pos),
+		Position: v.fset.Position(pos),
 		Funcname: v.decl.Name.Name,
 	})
 }
