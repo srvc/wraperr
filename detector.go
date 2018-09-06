@@ -77,6 +77,9 @@ func (d *detectorImpl) CheckPackages(paths []string) error {
 		go func(pkg *Package) {
 			defer wg.Done()
 			for _, f := range pkg.Files {
+				if isGenerated(f) {
+					continue
+				}
 				ast.Walk(newVisitor(d.fset, pkg, unwrappedErrs, d.wrapperFuncSet), f)
 			}
 		}(pkg)
