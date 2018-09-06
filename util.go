@@ -1,6 +1,8 @@
 package wraperr
 
-import "go/types"
+import (
+	"go/types"
+)
 
 var errorType *types.Interface
 
@@ -9,5 +11,5 @@ func init() {
 }
 
 func isErrorType(t types.Type) bool {
-	return types.Implements(t, errorType)
+	return t != nil && types.Implements(t, errorType)
 }
