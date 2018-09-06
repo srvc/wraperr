@@ -265,6 +265,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 func (v *funcVisitor) recordUnwrappedError(pos token.Pos) {
 	v.unwrappedErrs.Add(&UnwrappedError{
 		Position: v.fset.Position(pos),
+		Pkgname:  v.pkg.Path(),
 		Funcname: v.decl.Name.Name,
 	})
 }

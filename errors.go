@@ -8,6 +8,7 @@ import (
 
 type UnwrappedError struct {
 	Position token.Position
+	Pkgname  string
 	Funcname string
 }
 
