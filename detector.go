@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -155,7 +156,11 @@ func (v *visitor) isWrapped(call *ast.CallExpr) bool {
 	switch fexpr := call.Fun.(type) {
 	case *ast.SelectorExpr:
 		if f, ok := v.pkg.ObjectOf(fexpr.Sel).(*types.Func); ok {
-			_, ok = v.wrapperFuncSet[f.FullName()]
+			fullName := f.FullName()
+			if idx := strings.LastIndex(fullName, "/vendor/"); idx != -1 {
+				fullName = fullName[idx+len("/vendor/"):]
+			}
+			_, ok = v.wrapperFuncSet[fullName]
 			return ok
 		}
 	}
