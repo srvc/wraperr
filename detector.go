@@ -29,9 +29,9 @@ var (
 		"github.com/pkg/errors.Wrapf",
 
 		// github.com/srvc/fail
-		"github.com/pkg/fail.Errorf",
-		"github.com/pkg/fail.New",
-		"github.com/pkg/fail.Wrap",
+		"github.com/srvc/fail.Errorf",
+		"github.com/srvc/fail.New",
+		"github.com/srvc/fail.Wrap",
 	}
 )
 
