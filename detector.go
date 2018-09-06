@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"sort"
+	"sync"
 
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/packages"
@@ -68,13 +69,20 @@ func (d *detectorImpl) CheckPackages(paths []string) error {
 		return errors.WithStack(err)
 	}
 
+	var wg sync.WaitGroup
 	unwrappedErrs := &unwrappedErrors{}
 
 	for _, pkg := range pkgs {
-		for _, f := range pkg.Files {
-			ast.Walk(newVisitor(d.fset, pkg, unwrappedErrs, d.wrapperFuncSet), f)
-		}
+		wg.Add(1)
+		go func(pkg *Package) {
+			defer wg.Done()
+			for _, f := range pkg.Files {
+				ast.Walk(newVisitor(d.fset, pkg, unwrappedErrs, d.wrapperFuncSet), f)
+			}
+		}(pkg)
 	}
+
+	wg.Wait()
 
 	if len(unwrappedErrs.Errors()) == 0 {
 		return nil
@@ -96,6 +104,7 @@ func (d *detectorImpl) load(paths []string) ([]*Package, error) {
 	}
 
 	result := make([]*Package, len(pkgs), len(pkgs))
+
 	for i, pkg := range pkgs {
 		result[i] = &Package{
 			Package: pkg.Types,
