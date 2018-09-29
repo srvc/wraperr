@@ -3,12 +3,12 @@ package wraperr_test
 import (
 	"testing"
 
-	"github.com/izumin5210/wraperr"
+	"github.com/srvc/wraperr"
 )
 
 func TestDetector_CheckPackages(t *testing.T) {
 	detector := wraperr.NewDetector()
-	err := detector.CheckPackages([]string{"github.com/izumin5210/wraperr/testdata/detector/simple"})
+	err := detector.CheckPackages([]string{"github.com/srvc/wraperr/testdata/detector/simple"})
 
 	if err == nil {
 		t.Fatalf("should return an error")

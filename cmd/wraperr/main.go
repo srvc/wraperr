@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/izumin5210/wraperr"
+	"github.com/srvc/wraperr"
 	"github.com/pkg/errors"
 )
 
