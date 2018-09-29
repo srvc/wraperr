@@ -1,4 +1,4 @@
-module github.com/izumin5210/wraperr
+module github.com/srvc/wraperr
 
 require (
 	github.com/pkg/errors v0.8.0
