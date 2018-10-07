@@ -1,7 +1,7 @@
 module github.com/srvc/wraperr
 
 require (
-	github.com/google/go-cmp v0.2.0 // indirect
+	github.com/google/go-cmp v0.2.0
 	github.com/google/go-github v17.0.0+incompatible // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/haya14busa/errorformat v0.0.0-20180607161917-689b7d67b7a8 // indirect
