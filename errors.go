@@ -7,13 +7,15 @@ import (
 )
 
 type UnwrappedError struct {
-	Position token.Position
-	Pkgname  string
-	Funcname string
+	Pkgname    string
+	Funcname   string
+	Line       string
+	ReturnedAt token.Position
+	OccurredAt token.Position
 }
 
 func (ei *UnwrappedError) less(ej *UnwrappedError) bool {
-	pi, pj := ei.Position, ej.Position
+	pi, pj := ei.ReturnedAt, ej.ReturnedAt
 
 	if pi.Filename != pj.Filename {
 		return pi.Filename < pj.Filename

@@ -1,10 +1,12 @@
 package wraperr
 
 import (
+	"bufio"
 	"go/ast"
 	"go/build"
 	"go/token"
 	"go/types"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -174,6 +176,7 @@ type funcVisitor struct {
 	errIdents   map[string]*errIdent
 	errInReturn []bool
 	errNames    map[string]struct{}
+	lines       map[string][]string
 }
 
 func newFuncVisitor(parent *visitor, decl *ast.FuncDecl) (v ast.Visitor, ok bool) {
@@ -198,6 +201,7 @@ func newFuncVisitor(parent *visitor, decl *ast.FuncDecl) (v ast.Visitor, ok bool
 			errIdents:   map[string]*errIdent{},
 			errInReturn: errInReturn,
 			errNames:    errNames,
+			lines:       map[string][]string{},
 		}
 	}
 	return
@@ -240,7 +244,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			// Named return values
 			for n := range v.errNames {
 				if errIdent, ok := v.errIdents[n]; ok && !errIdent.wrapped {
-					v.recordUnwrappedError(stmt.Return)
+					v.recordUnwrappedError(errIdent.Pos(), stmt.Return)
 				}
 			}
 		case len(v.errInReturn):
@@ -252,11 +256,11 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 				switch expr := expr.(type) {
 				case *ast.Ident:
 					if errIdent, ok := v.errIdents[expr.Name]; ok && !errIdent.wrapped {
-						v.recordUnwrappedError(expr.NamePos)
+						v.recordUnwrappedError(errIdent.Pos(), expr.NamePos)
 					}
 				case *ast.CallExpr:
 					if !v.isWrapped(expr) {
-						v.recordUnwrappedError(expr.Lparen)
+						v.recordUnwrappedError(expr.Pos(), expr.Lparen)
 					}
 				default:
 					// TODO: should report unexpected exper
@@ -267,7 +271,7 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			switch expr := stmt.Results[0].(type) {
 			case *ast.CallExpr:
 				if !v.isWrapped(expr) {
-					v.recordUnwrappedError(expr.Pos())
+					v.recordUnwrappedError(expr.Pos(), expr.Pos())
 				}
 			default:
 				// TODO: should report unexpected exper
@@ -279,10 +283,37 @@ func (v *funcVisitor) Visit(node ast.Node) (w ast.Visitor) {
 	return v
 }
 
-func (v *funcVisitor) recordUnwrappedError(pos token.Pos) {
+func (v *funcVisitor) recordUnwrappedError(occurredAt, returnedAt token.Pos) {
 	v.unwrappedErrs.Add(&UnwrappedError{
-		Position: v.fset.Position(pos),
-		Pkgname:  v.pkg.Path(),
-		Funcname: v.decl.Name.Name,
+		OccurredAt: v.fset.Position(occurredAt),
+		ReturnedAt: v.fset.Position(returnedAt),
+		Pkgname:    v.pkg.Path(),
+		Funcname:   v.decl.Name.Name,
+		Line:       v.getLine(occurredAt),
 	})
+}
+
+// ref: https://github.com/kisielk/errcheck/blob/1787c4bee836470bf45018cfbc783650db3c6501/internal/errcheck/errcheck.go#L488-L498
+func (v *funcVisitor) getLine(tp token.Pos) string {
+	pos := v.fset.Position(tp)
+	lines, ok := v.lines[pos.Filename]
+
+	if !ok {
+		f, err := os.Open(pos.Filename)
+		if err == nil {
+			sc := bufio.NewScanner(f)
+			for sc.Scan() {
+				lines = append(lines, sc.Text())
+			}
+			v.lines[pos.Filename] = lines
+			f.Close()
+		}
+	}
+
+	line := "??"
+	if pos.Line-1 < len(lines) {
+		line = strings.TrimSpace(lines[pos.Line-1])
+	}
+
+	return line
 }

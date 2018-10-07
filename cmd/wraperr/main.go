@@ -3,11 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/srvc/wraperr"
 	"github.com/pkg/errors"
+	"github.com/srvc/wraperr"
 )
 
 func main() {
@@ -20,12 +22,7 @@ func main() {
 func run() error {
 	flag.Parse()
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	err = wraperr.NewDetector().CheckPackages(flag.Args())
+	err := wraperr.NewDetector().CheckPackages(flag.Args())
 	if err == nil {
 		return nil
 	}
@@ -35,13 +32,43 @@ func run() error {
 		return errors.WithStack(err)
 	}
 
-	for _, e := range errs.Errors() {
-		pos, err := filepath.Rel(wd, e.Position.String())
-		if err != nil {
-			pos = e.Position.String()
-		}
-		fmt.Printf("%s:\t%s.%s\n", pos, e.Pkgname, e.Funcname)
-	}
+	fprintUnwrappedErrors(os.Stdout, errs)
 
 	return nil
+}
+
+func fprintUnwrappedErrors(w io.Writer, errs wraperr.UnwrappedErrors) {
+	wd, _ := os.Getwd()
+
+	for _, e := range errs.Errors() {
+		var occPos, retPos string
+		if wd != "" {
+			occPos, _ = filepath.Rel(wd, e.OccurredAt.String())
+			retPos, _ = filepath.Rel(wd, e.ReturnedAt.String())
+		}
+		if occPos == "" {
+			occPos = e.OccurredAt.String()
+		}
+		if retPos == "" {
+			retPos = e.ReturnedAt.String()
+		}
+		fmt.Fprintf(w, "%s:\t%s:\t%s\n", retPos, occPos, sprintInlineCode(e.Line))
+	}
+}
+
+func sprintInlineCode(s string) string {
+	cc := 1
+	c := cc
+	for _, r := range s {
+		if r == '`' {
+			cc++
+			if cc > c {
+				c = cc
+			}
+		} else {
+			cc = 1
+		}
+	}
+	q := strings.Repeat("`", c)
+	return q + s + q
 }
