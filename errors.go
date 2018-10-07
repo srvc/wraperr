@@ -7,9 +7,12 @@ import (
 )
 
 type UnwrappedError struct {
-	Position token.Position
-	Pkgname  string
-	Funcname string
+	Position   token.Position
+	Pkgname    string
+	Funcname   string
+	Line       string
+	ReturnedAt token.Position
+	OccurredAt token.Position
 }
 
 func (ei *UnwrappedError) less(ej *UnwrappedError) bool {
