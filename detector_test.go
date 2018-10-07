@@ -1,104 +1,234 @@
 package wraperr_test
 
 import (
+	"go/token"
+	"path/filepath"
+	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/srvc/wraperr"
 )
 
 func TestDetector_CheckPackages(t *testing.T) {
-	detector := wraperr.NewDetector()
-	err := detector.CheckPackages([]string{"github.com/srvc/wraperr/testdata/detector/simple"})
+	errsByPkg := map[string][]*wraperr.UnwrappedError{
+		"simple": []*wraperr.UnwrappedError{
+			{
+				Funcname:   "returnError2",
+				Line:       "return returnError1()",
+				OccurredAt: token.Position{Line: 16},
+				ReturnedAt: token.Position{Line: 16},
+			},
+			{
+				OccurredAt: token.Position{Line: 26},
+				ReturnedAt: token.Position{Line: 27},
+				Funcname:   "returnError4",
+				Line:       "err := returnError1()",
+			},
+			{
+				OccurredAt: token.Position{Line: 38},
+				ReturnedAt: token.Position{Line: 40},
+				Funcname:   "returnError6",
+				Line:       "err := returnError1()",
+			},
+		},
+		"named_return": []*wraperr.UnwrappedError{
+			{
+				OccurredAt: token.Position{Line: 17},
+				ReturnedAt: token.Position{Line: 18},
+				Funcname:   "returnError2",
+				Line:       "err = returnError1()",
+			},
+		},
+		"multi_return": []*wraperr.UnwrappedError{
+			{
+				OccurredAt: token.Position{Line: 16},
+				ReturnedAt: token.Position{Line: 16},
+				Funcname:   "returnValueAndError2",
+				Line:       "return returnValueAndError1()",
+			},
+			{
+				OccurredAt: token.Position{Line: 21},
+				ReturnedAt: token.Position{Line: 23},
+				Funcname:   "returnValueAndError3",
+				Line:       "v, err := returnValueAndError1()",
+			},
+		},
+		"multi_named_return": []*wraperr.UnwrappedError{
+			{
+				OccurredAt: token.Position{Line: 16},
+				ReturnedAt: token.Position{Line: 17},
+				Funcname:   "returnValueAndError2",
+				Line:       "v, err = returnValueAndError1()",
+			},
+		},
+		"select_stmt": []*wraperr.UnwrappedError{
+			{
+				OccurredAt: token.Position{Line: 17},
+				ReturnedAt: token.Position{Line: 17},
+				Funcname:   "ReturnError1",
+				Line:       "return s.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 27},
+				ReturnedAt: token.Position{Line: 28},
+				Funcname:   "ReturnError3",
+				Line:       "err := s.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 39},
+				ReturnedAt: token.Position{Line: 40},
+				Funcname:   "ReturnError5",
+				Line:       "if err := s.ReturnError(); err != nil {",
+			},
+			{
+				OccurredAt: token.Position{Line: 55},
+				ReturnedAt: token.Position{Line: 55},
+				Funcname:   "ReturnValueAndError1",
+				Line:       `return "", s.ReturnError()`,
+			},
+			{
+				OccurredAt: token.Position{Line: 60},
+				ReturnedAt: token.Position{Line: 60},
+				Funcname:   "ReturnValueAndError2",
+				Line:       "return s.ReturnValueAndError1()",
+			},
+			{
+				OccurredAt: token.Position{Line: 71},
+				ReturnedAt: token.Position{Line: 74},
+				Funcname:   "ReturnValueAndError4",
+				Line:       "if v, err := s.ReturnValueAndError1(); err == nil {",
+			},
+		},
+		"otherpkg_select_stmt": []*wraperr.UnwrappedError{
+			// func
+			{
+				OccurredAt: token.Position{Line: 10},
+				ReturnedAt: token.Position{Line: 10},
+				Funcname:   "returnError1",
+				Line:       "return otherpkg.ReturnErrorFunc()",
+			},
+			{
+				OccurredAt: token.Position{Line: 20},
+				ReturnedAt: token.Position{Line: 21},
+				Funcname:   "returnError3",
+				Line:       "err := otherpkg.ReturnErrorFunc()",
+			},
+			{
+				OccurredAt: token.Position{Line: 32},
+				ReturnedAt: token.Position{Line: 33},
+				Funcname:   "returnError5",
+				Line:       "if err := otherpkg.ReturnErrorFunc(); err != nil {",
+			},
+			{
+				OccurredAt: token.Position{Line: 48},
+				ReturnedAt: token.Position{Line: 48},
+				Funcname:   "returnValueAndError1",
+				Line:       "return otherpkg.ReturnValueAndErrorFunc()",
+			},
+			{
+				OccurredAt: token.Position{Line: 59},
+				ReturnedAt: token.Position{Line: 62},
+				Funcname:   "returnValueAndError3",
+				Line:       "if v, err := otherpkg.ReturnValueAndErrorFunc(); err == nil {",
+			},
+			// interface
+			{
+				OccurredAt: token.Position{Line: 10},
+				ReturnedAt: token.Position{Line: 10},
+				Funcname:   "interfaceReturnError1",
+				Line:       "return otherpkg.InterfaceInstance.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 20},
+				ReturnedAt: token.Position{Line: 21},
+				Funcname:   "interfaceReturnError3",
+				Line:       "err := otherpkg.InterfaceInstance.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 32},
+				ReturnedAt: token.Position{Line: 33},
+				Funcname:   "interfaceReturnError5",
+				Line:       "if err := otherpkg.InterfaceInstance.ReturnError(); err != nil {",
+			},
+			{
+				OccurredAt: token.Position{Line: 48},
+				ReturnedAt: token.Position{Line: 48},
+				Funcname:   "interfaceReturnValueAndError1",
+				Line:       "return otherpkg.InterfaceInstance.ReturnValueAndError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 59},
+				ReturnedAt: token.Position{Line: 62},
+				Funcname:   "interfaceReturnValueAndError3",
+				Line:       "if v, err := otherpkg.InterfaceInstance.ReturnValueAndError(); err == nil {",
+			},
+			// struct
+			{
+				OccurredAt: token.Position{Line: 10},
+				ReturnedAt: token.Position{Line: 10},
+				Funcname:   "structReturnError1",
+				Line:       "return otherpkg.StructInstance.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 20},
+				ReturnedAt: token.Position{Line: 21},
+				Funcname:   "structReturnError3",
+				Line:       "err := otherpkg.StructInstance.ReturnError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 32},
+				ReturnedAt: token.Position{Line: 33},
+				Funcname:   "structReturnError5",
+				Line:       "if err := otherpkg.StructInstance.ReturnError(); err != nil {",
+			},
+			{
+				OccurredAt: token.Position{Line: 48},
+				ReturnedAt: token.Position{Line: 48},
+				Funcname:   "structReturnValueAndError1",
+				Line:       "return otherpkg.StructInstance.ReturnValueAndError()",
+			},
+			{
+				OccurredAt: token.Position{Line: 59},
+				ReturnedAt: token.Position{Line: 62},
+				Funcname:   "structReturnValueAndError3",
+				Line:       "if v, err := otherpkg.StructInstance.ReturnValueAndError(); err == nil {",
+			},
+		},
+	}
 
+	keys := make([]string, 0, len(errsByPkg))
+	for key := range errsByPkg {
+		keys = append(keys, key)
+	}
+	sort.StringSlice(keys).Sort()
+
+	var wantErrs []*wraperr.UnwrappedError
+	for _, k := range keys {
+		for _, err := range errsByPkg[k] {
+			err.Pkgname = filepath.Join("github.com/srvc/wraperr/testdata/detector", k)
+			wantErrs = append(wantErrs, err)
+		}
+	}
+
+	detector := wraperr.NewDetector()
+	err := detector.CheckPackages([]string{"./testdata/detector/..."})
 	if err == nil {
 		t.Fatalf("should return an error")
 	}
 
-	errs, ok := wraperr.UnwrapUnwrappedErrorsError(err)
+	gotErrs, ok := wraperr.UnwrapUnwrappedErrorsError(err)
 	if !ok {
 		t.Fatalf("should return an UnwrappedErrorsa, but returned %v", err)
 	}
 
-	cases := []struct {
-		test       string
-		returnedOn int
-		occurredOn int
-		funcname   string
-		line       string
-	}{
-		{
-			test:       "return an error directly",
-			occurredOn: 28,
-			returnedOn: 28,
-			funcname:   "returnError2",
-			line:       "return returnError()",
-		},
-		{
-			test:       "return an error variable",
-			occurredOn: 38,
-			returnedOn: 39,
-			funcname:   "returnError4",
-			line:       "err := returnError()",
-		},
-		{
-			test:       "return an error variable in if-statement",
-			occurredOn: 50,
-			returnedOn: 52,
-			funcname:   "returnError6",
-			line:       "err := returnError()",
-		},
-		{
-			test:       "return an error as named return value",
-			occurredOn: 68,
-			returnedOn: 69,
-			funcname:   "returnError8",
-			line:       "err = returnError()",
-		},
-		{
-			test:       "return a value and an error directly",
-			occurredOn: 92,
-			returnedOn: 92,
-			funcname:   "returnValueAndError2",
-			line:       "return returnValueAndError()",
-		},
-		{
-			test:       "return a value and an error variables",
-			occurredOn: 97,
-			returnedOn: 99,
-			funcname:   "returnValueAndError3",
-			line:       "v, err := returnValueAndError()",
-		},
-		{
-			test:       "return a value and an error as named return values",
-			occurredOn: 115,
-			returnedOn: 116,
-			funcname:   "returnValueAndError5",
-			line:       "v, err = returnValueAndError()",
-		},
+	if want, got := len(wantErrs), len(gotErrs.Errors()); got != want {
+		t.Errorf("returned %d errors, want %d errors", got, want)
 	}
 
-	if got, want := len(errs.Errors()), len(cases); got != want {
-		t.Errorf("returned %d errors, want %d errors", got, want)
-	} else {
-		for i, tc := range cases {
-			unwrappedErr := errs.Errors()[i]
-			t.Run(tc.test, func(t *testing.T) {
-				if got, want := unwrappedErr.Funcname, tc.funcname; got != want {
-					t.Errorf("reported funcname is %s, want %s", got, want)
-				}
+	opt := cmp.Comparer(func(x, y token.Position) bool { return x.Line == y.Line })
 
-				if got, want := unwrappedErr.Line, tc.line; got != want {
-					t.Errorf("reported error is occurred on %q, want %q", got, want)
-				}
-
-				if got, want := unwrappedErr.OccurredAt.Line, tc.occurredOn; got != want {
-					t.Errorf("reported error is occurred on #%d, want #%d", got, want)
-				}
-
-				if got, want := unwrappedErr.ReturnedAt.Line, tc.returnedOn; got != want {
-					t.Errorf("reported error is returned on #%d, want #%d", got, want)
-				}
-			})
-		}
+	if diff := cmp.Diff(gotErrs.Errors(), wantErrs, opt); diff != "" {
+		t.Errorf("detected errors differs: (-want +got)\n%s", diff)
 	}
 }
