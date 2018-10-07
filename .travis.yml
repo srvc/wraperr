@@ -1,0 +1,27 @@
+language: go
+go:       "1.11"
+
+env:
+  global:
+  - GO111MODULE=on
+
+  # REVIEWDOG_GITHUB_API_TOKEN
+  - secure: "fU+NaXwEYcoNZc+DK3tam7SICjTEgQAsZWpIqwrrSeV6TILYnqVC9ZDVjntKoa2C5iqiHlcEGQ7+ANaKYK8ETw1jJMGgWuoraudnQJK9kRqWyQOo7hkrBxXGE1dfj6GWPqdzmVAIP5pMBU4ZJmrPvFwBn/iX6iLEOfKUT2DLHrTRMStAe1MCQaqC1ec/iBREpoh5hYBNPw/M+/e2uP7tOYOr0cSm4Iv/DuUNx2NWXCl7QmS3Gufuxc6hLUNRqkbmR5Z3R64I5b0dhshhpcXqlYi0L5MIdZL37wAUXLQhT97R40daTo56DCSF/IqgYS4mushtviTY4P+xXPjytSmjhUii+Q6pWFkUPLxvQmUopHfh9TCFJaUBJFkJ7hrffn/s62aS4S4tI8TXMHAzqVSxotgOU3f5hnKwI7qJwf/hOl1NBlLw2OlEQeE72FEcTIvBRSYZzoGi523+oeCO2T0tmUBnEi5BhL4JDG1gCV+X00WgzukZ8lU2OPonzDhqXFJRP9tabNKlkZ21trsShtO9+HP7ngzScSMKBdfHoazBP+LEubR/f8zdVbl9uKJq7lAYu46tZl9A3zdHmZS/Te1DVPYTats7LdmI6P3ks/WWXGAyHLpMZqqT4ezkXFcZLxYXGGwTJBFZxu+RozQC8P22hYSizudAg6wb8AUmKOXeCRI="
+
+cache:
+  directories:
+  - $GOPATH/pkg/mod
+
+jobs:
+  include:
+  - name: 'lint'
+    before_script:
+    - go get github.com/izumin5210/gex/cmd/gex
+    - gex --build
+    script: gex reviewdog -reporter=github-pr-review
+    if: type = 'pull_request'
+
+  - name: 'test'
+    script: go test -v -coverpkg ./... -coverprofile coverage.txt -covermode atomic ./...
+    after_success: bash <(curl -s https://codecov.io/bash)
+    if: type != 'pull_request'
