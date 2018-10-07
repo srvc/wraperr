@@ -197,21 +197,22 @@ func TestDetector_CheckPackages(t *testing.T) {
 		},
 	}
 
-	pkgs := []string{"simple", "named_return", "multi_return", "select_stmt", "otherpkg_select_stmt"}
-	sort.StringSlice(pkgs).Sort()
+	keys := make([]string, 0, len(errsByPkg))
+	for key := range errsByPkg {
+		keys = append(keys, key)
+	}
+	sort.StringSlice(keys).Sort()
 
 	var wantErrs []*wraperr.UnwrappedError
-
-	for i, s := range pkgs {
-		pkgs[i] = filepath.Join("github.com/srvc/wraperr/testdata/detector", s)
-		for _, err := range errsByPkg[s] {
-			err.Pkgname = pkgs[i]
+	for _, k := range keys {
+		for _, err := range errsByPkg[k] {
+			err.Pkgname = filepath.Join("github.com/srvc/wraperr/testdata/detector", k)
 			wantErrs = append(wantErrs, err)
 		}
 	}
 
 	detector := wraperr.NewDetector()
-	err := detector.CheckPackages(pkgs)
+	err := detector.CheckPackages([]string{"./testdata/detector/..."})
 	if err == nil {
 		t.Fatalf("should return an error")
 	}
@@ -219,6 +220,10 @@ func TestDetector_CheckPackages(t *testing.T) {
 	gotErrs, ok := wraperr.UnwrapUnwrappedErrorsError(err)
 	if !ok {
 		t.Fatalf("should return an UnwrappedErrorsa, but returned %v", err)
+	}
+
+	if want, got := len(wantErrs), len(gotErrs.Errors()); got != want {
+		t.Errorf("returned %d errors, want %d errors", got, want)
 	}
 
 	opt := cmp.Comparer(func(x, y token.Position) bool { return x.Line == y.Line })
