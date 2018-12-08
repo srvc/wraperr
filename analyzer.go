@@ -20,6 +20,33 @@ var Analyzer = &analysis.Analyzer{
 	Run:      runAnalyze,
 }
 
+var (
+	// WrapperFuncList contains "path/to/pkg.Funcname" strings that adds a context to errors.
+	WrapperFuncList = []string{
+		// stdlibs
+		"errors.New",
+		"fmt.Errorf",
+
+		// github.com/pkg/errors
+		"github.com/pkg/errors.Errorf",
+		"github.com/pkg/errors.New",
+		"github.com/pkg/errors.WithMessage",
+		"github.com/pkg/errors.WithStack",
+		"github.com/pkg/errors.Wrap",
+		"github.com/pkg/errors.Wrapf",
+
+		// github.com/srvc/fail
+		"github.com/srvc/fail.Errorf",
+		"github.com/srvc/fail.New",
+		"github.com/srvc/fail.Wrap",
+	}
+)
+
+type errIdent struct {
+	*ast.Ident
+	wrapped bool
+}
+
 var wrapperFuncSet map[string]struct{}
 
 func init() {
