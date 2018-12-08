@@ -66,8 +66,17 @@ func runAnalyze(pass *analysis.Pass) (interface{}, error) {
 		(*ast.FuncDecl)(nil),
 	}
 
-	inspect.Preorder(nodeFilter, func(n ast.Node) {
+	inspect.WithStack(nodeFilter, func(n ast.Node, push bool, stack []ast.Node) bool {
+		switch f := stack[0].(type) {
+		case *ast.File:
+			if isGenerated(f) {
+				return false
+			}
+		default:
+			panic("unreachable")
+		}
 		NewChecker(pass.Fset, pass.TypesInfo, n.(*ast.FuncDecl)).Check(reportFunc)
+		return false
 	})
 
 	return nil, nil

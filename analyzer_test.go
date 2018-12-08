@@ -18,6 +18,7 @@ func TestAnalyzer(t *testing.T) {
 		"multi_named_return",
 		"select_stmt",
 		"otherpkg_select_stmt",
+		"generated",
 	}
 
 	for _, tc := range cases {
