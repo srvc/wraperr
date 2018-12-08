@@ -19,16 +19,31 @@ func NewChecker(
 	f *ast.FuncDecl,
 ) Checker {
 	return &checkerImpl{
-		fset: fset,
-		info: info,
-		f:    f,
+		fset:     fset,
+		info:     info,
+		funcType: f.Type,
+		funcBody: f.Body,
+	}
+}
+
+func newClousureChecker(
+	fset *token.FileSet,
+	info *types.Info,
+	f *ast.FuncLit,
+) Checker {
+	return &checkerImpl{
+		fset:     fset,
+		info:     info,
+		funcType: f.Type,
+		funcBody: f.Body,
 	}
 }
 
 type checkerImpl struct {
-	fset *token.FileSet
-	info *types.Info
-	f    *ast.FuncDecl
+	fset     *token.FileSet
+	info     *types.Info
+	funcType *ast.FuncType
+	funcBody *ast.BlockStmt
 
 	errInReturn []bool
 	errNames    map[string]struct{}
@@ -40,23 +55,26 @@ func (c *checkerImpl) Check(report ReportFunc) {
 		return
 	}
 
-	ast.Inspect(c.f, func(n ast.Node) bool {
+	ast.Inspect(c.funcBody, func(n ast.Node) bool {
 		switch stmt := n.(type) {
 		case *ast.AssignStmt:
 			c.checkAssignment(stmt)
 		case *ast.ReturnStmt:
 			c.checkReturn(stmt, report)
+		case *ast.FuncLit:
+			newClousureChecker(c.fset, c.info, stmt).Check(report)
+			return false
 		}
 		return true
 	})
 }
 
 func (c *checkerImpl) init() (ok bool) {
-	if c.f.Type == nil || c.f.Type.Results == nil {
+	if c.funcType == nil || c.funcType.Results == nil {
 		return
 	}
 
-	fields := c.f.Type.Results.List
+	fields := c.funcType.Results.List
 
 	c.errInReturn = make([]bool, 0, 2*len(fields))
 	c.errNames = make(map[string]struct{}, 2*len(fields))

@@ -19,6 +19,7 @@ func TestAnalyzer(t *testing.T) {
 		"select_stmt",
 		"otherpkg_select_stmt",
 		"generated",
+		"clousure",
 	}
 
 	for _, tc := range cases {
