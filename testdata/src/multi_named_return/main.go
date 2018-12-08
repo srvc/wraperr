@@ -6,18 +6,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ok
 func returnValueAndError1() (v string, err error) {
 	return "quxquux", stderrors.New("foobarbaz")
 }
 
-// ng
 func returnValueAndError2() (v string, err error) {
 	v, err = returnValueAndError1()
-	return
+	return // want "L14: `v, err = returnValueAndError1()"
 }
 
-// ok
 func returnValueAndError3() (v string, err error) {
 	v, err = returnValueAndError1()
 	if err != nil {

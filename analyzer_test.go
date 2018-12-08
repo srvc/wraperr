@@ -10,5 +10,19 @@ import (
 
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, wraperr.Analyzer, "simple")
+
+	cases := []string{
+		"simple",
+		"named_return",
+		"multi_return",
+		"multi_named_return",
+		"select_stmt",
+		"otherpkg_select_stmt",
+	}
+
+	for _, tc := range cases {
+		t.Run(tc, func(t *testing.T) {
+			analysistest.Run(t, testdata, wraperr.Analyzer, tc)
+		})
+	}
 }
