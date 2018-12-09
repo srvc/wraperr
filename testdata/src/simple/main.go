@@ -6,43 +6,36 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ok
 func returnError1() error {
 	return stderrors.New("foobarbaz")
 }
 
-// ng
 func returnError2() error {
-	return returnError1()
+	return returnError1() // want "L14: `return returnError1()"
 }
 
-// ok
 func returnError3() error {
 	return errors.Wrap(returnError1(), "error occurred")
 }
 
-// ng
 func returnError4() error {
 	err := returnError1()
-	return err
+	return err // want "L22: `err := returnError1()"
 }
 
-// ok
 func returnError5() error {
 	err := errors.WithStack(returnError1())
 	return err
 }
 
-// ng
 func returnError6() error {
 	err := returnError1()
 	if err != nil {
-		return err
+		return err // want "L32: `err := returnError1()"
 	}
 	return nil
 }
 
-// ok
 func returnError7() error {
 	err := returnError1()
 	if err != nil {
