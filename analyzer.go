@@ -69,7 +69,7 @@ func runAnalyze(pass *analysis.Pass) (interface{}, error) {
 	inspect.WithStack(nodeFilter, func(n ast.Node, push bool, stack []ast.Node) bool {
 		switch f := stack[0].(type) {
 		case *ast.File:
-			if isGenerated(f) {
+			if isTestFile(pass.Fset, f) || isGeneratedFile(f) {
 				return false
 			}
 		default:

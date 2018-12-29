@@ -25,7 +25,7 @@ func isErrorType(t types.Type) bool {
 }
 
 // https://golang.org/s/generatedcode
-func isGenerated(f *ast.File) bool {
+func isGeneratedFile(f *ast.File) bool {
 	for _, cg := range f.Comments {
 		for _, c := range cg.List {
 			src := c.Text
@@ -36,6 +36,10 @@ func isGenerated(f *ast.File) bool {
 		}
 	}
 	return false
+}
+
+func isTestFile(fset *token.FileSet, f *ast.File) bool {
+	return strings.HasSuffix(fset.File(f.Pos()).Name(), "_test.go")
 }
 
 func sprintInlineCode(s string) string {
