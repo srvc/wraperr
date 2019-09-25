@@ -1,5 +1,5 @@
 language: go
-go:       "1.11"
+go:       "1.13"
 
 env:
   global:
@@ -15,10 +15,7 @@ cache:
 jobs:
   include:
   - name: 'lint'
-    before_script:
-    - go get github.com/izumin5210/gex/cmd/gex
-    - gex --build
-    script: gex reviewdog -reporter=github-pr-review
+    script: make lint
     if: type = 'pull_request'
 
   - name: 'test'
