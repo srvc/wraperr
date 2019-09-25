@@ -18,7 +18,17 @@ jobs:
     script: make lint
     if: type = 'pull_request'
 
-  - name: 'test'
-    script: go test -v -coverpkg ./... -coverprofile coverage.txt -covermode atomic ./...
+  - script:  make cover
     after_success: bash <(curl -s https://codecov.io/bash)
     if: type != 'pull_request'
+
+  - &test
+    go: "1.12"
+    script:  make test
+    if: type != 'pull_request'
+
+  - <<: *test
+    go: "1.11"
+
+  - <<: *test
+    go: "master"
