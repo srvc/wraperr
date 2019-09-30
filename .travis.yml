@@ -1,5 +1,5 @@
 language: go
-go:       "1.11"
+go:       "1.13"
 
 env:
   global:
@@ -15,13 +15,20 @@ cache:
 jobs:
   include:
   - name: 'lint'
-    before_script:
-    - go get github.com/izumin5210/gex/cmd/gex
-    - gex --build
-    script: gex reviewdog -reporter=github-pr-review
+    script: make lint
     if: type = 'pull_request'
 
-  - name: 'test'
-    script: go test -v -coverpkg ./... -coverprofile coverage.txt -covermode atomic ./...
+  - script:  make cover
     after_success: bash <(curl -s https://codecov.io/bash)
     if: type != 'pull_request'
+
+  - &test
+    go: "1.12"
+    script:  make test
+    if: type != 'pull_request'
+
+  - <<: *test
+    go: "1.11"
+
+  - <<: *test
+    go: "master"
